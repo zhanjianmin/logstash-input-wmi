@@ -46,7 +46,7 @@ class LogStash::Inputs::WMI < LogStash::Inputs::Base
   public
   def register
 
-    @host = Socket.gethostname
+    # @host = Socket.gethostname
     @logger.info("Registering wmi input", :query => @query)
 
     if RUBY_PLATFORM == "java"
@@ -56,19 +56,12 @@ class LogStash::Inputs::WMI < LogStash::Inputs::Base
     end
 
     # If host is localhost do a local connection
-    if (@host == "127.0.0.1" || @host == "localhost" || @host == "::1")
-      @wmi = WIN32OLE.connect('winmgmts:')
-      @host = Socket.gethostname
-    else
-      locator = WIN32OLE.new("WbemScripting.SWbemLocator")
-      @host = Socket.gethostbyname(@host).first
-      @wmi = locator.ConnectServer(@host, @namespace, @user, @password.value)
-    end
+    initialize_host(@host)
   end # def register
 
   public
   def run(queue)
-
+    initialize_host(@host) # multi thread maybe release the wmi object
     begin
       @logger.debug("Executing WMI query '#{@query}'")
       loop do
@@ -90,4 +83,17 @@ class LogStash::Inputs::WMI < LogStash::Inputs::Base
       retry
     end # begin/rescue
   end # def run
+  
+  private
+  def initialize_host(host)
+    # If host is localhost do a local connection
+    if (host == "127.0.0.1" || host == "localhost" || host == "::1" || host.nil?)
+      @host = Socket.gethostname
+      @wmi = WIN32OLE.connect('winmgmts:')
+    else
+      locator = WIN32OLE.new("WbemScripting.SWbemLocator")
+      @host = Socket.gethostbyname(@host).first
+      @wmi = locator.ConnectServer(@host, @namespace, @user, @password.value)
+    end
+  end
 end # class LogStash::Inputs::WMI
